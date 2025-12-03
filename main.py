@@ -34,10 +34,9 @@ def normalize_russian_phone(phone: str) -> str:
 @app.route('/submit', methods=['POST'])
 def receive_application():
     try:
-        data = request.get_json()
-        logger.info(f"📥 Получены данные: {data}")
-        if not data:
-            return jsonify({"error": "Пустой запрос"}), 400
+        # Tilda отправляет данные как form-data (не JSON!)
+        data = request.form.to_dict()
+        logger.info(f"📥 Получены данные от Tilda: {data}")
 
         full_name = ""
         phone_raw = ""
@@ -45,32 +44,34 @@ def receive_application():
         for key, value in data.items():
             if isinstance(value, str):
                 key_lower = key.lower()
-                if "name" in key_lower or "fio" in key_lower or "fullname" in key_lower:
+                # Ищем поля по ключевым словам (латиница и кириллица)
+                if any(kw in key_lower for kw in ["name", "fio", "fullname", "имя", "фио"]):
                     full_name = value.strip()
-                if "phone" in key_lower or "tel" in key_lower:
+                if any(kw in key_lower for kw in ["phone", "tel", "телефон", "телефон"]):
                     phone_raw = value.strip()
 
         if not full_name or not phone_raw:
+            logger.warning("❌ Не удалось найти ФИО или телефон")
             return jsonify({"error": "Не найдены ФИО или телефон"}), 400
 
         clean_phone = normalize_russian_phone(phone_raw)
 
-        # Первое сообщение: заявка
+        # 1. Сообщение с заявкой
         claim_message = (
             "🔔 <b>Новая заявка с сайта!</b>\n\n"
             f"👤 <b>ФИО:</b> {full_name}\n"
             f"📞 <b>Телефон:</b> <a href='tg://resolve?phone={clean_phone}'>{phone_raw}</a>"
         )
 
-        # Второе сообщение: ТОЛЬКО чистый текст для копирования
+        # 2. Чистый текст для копирования
         copy_text_clean = COPY_TEXT
 
         telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-        # Отправка заявки (с HTML)
+        # Отправка заявки (HTML)
         requests.post(
             telegram_url,
-            json={
+            data={
                 "chat_id": ADMIN_CHAT_ID,
                 "text": claim_message,
                 "parse_mode": "HTML"
@@ -78,10 +79,10 @@ def receive_application():
             timeout=10
         )
 
-        # Отправка текста для копирования (чистый текст!)
+        # Отправка текста для копирования (чистый текст)
         requests.post(
             telegram_url,
-            json={
+            data={
                 "chat_id": ADMIN_CHAT_ID,
                 "text": copy_text_clean
             },
