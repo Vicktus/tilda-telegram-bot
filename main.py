@@ -1,9 +1,7 @@
 import os
 import logging
 import re
-from telegram import Bot
-from telegram.constants import ParseMode
-from flask import Flask, request, jsonify
+import requests
 
 # === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8551418943:AAFplKK48glNeteXeS9QrVch2smuZQ5T-AY")
@@ -16,8 +14,8 @@ COPY_TEXT = os.getenv(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from flask import Flask, request, jsonify
 app = Flask(__name__)
-bot = Bot(token=BOT_TOKEN)
 
 def normalize_russian_phone(phone: str) -> str:
     digits = re.sub(r'\D', '', phone)
@@ -37,6 +35,7 @@ def normalize_russian_phone(phone: str) -> str:
 def receive_application():
     try:
         data = request.get_json()
+        logger.info(f"📥 Получены данные: {data}")
         if not data:
             return jsonify({"error": "Пустой запрос"}), 400
 
@@ -57,6 +56,7 @@ def receive_application():
         clean_phone = normalize_russian_phone(phone_raw)
         phone_link = f"tg://resolve?phone={clean_phone}"
 
+        # Форматируем сообщение в HTML (Telegram поддерживает)
         message = (
             "🔔 <b>Новая заявка с сайта!</b>\n\n"
             f"👤 <b>ФИО:</b> {full_name}\n"
@@ -65,9 +65,18 @@ def receive_application():
             f"<pre>{COPY_TEXT}</pre>"
         )
 
-        # Отправляем сообщение админу
-        import asyncio
-        asyncio.run(bot.send_message(chat_id=ADMIN_CHAT_ID, text=message, parse_mode=ParseMode.HTML))
+        # Отправляем через прямой HTTP-запрос к Telegram API
+        telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": ADMIN_CHAT_ID,
+            "text": message,
+            "parse_mode": "HTML"
+        }
+
+        response = requests.post(telegram_url, json=payload, timeout=10)
+        if response.status_code != 200:
+            logger.error(f"❌ Ошибка Telegram API: {response.text}")
+            return jsonify({"error": "Не удалось отправить в Telegram"}), 500
 
         logger.info(f"✅ Заявка от {full_name} отправлена.")
         return jsonify({"status": "ok"}), 200
