@@ -4,7 +4,6 @@ import re
 import requests
 from flask import Flask, request, jsonify
 
-# === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8551418943:AAFplKK48glNeteXeS9QrVch2smuZQ5T-AY")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "890315945"))
 COPY_TEXT = os.getenv(
@@ -38,16 +37,15 @@ def receive_application():
         raw_body = request.get_data().decode('utf-8', errors='replace')
         logger.info(f"📦 Raw body: {raw_body}")
 
-        data = request.form.to_dict()
-        if not data:  # ←←← ИСПРАВЛЕНО: добавлено условие
-            try:
-                json_data = request.get_json(silent=True)
-                if json:
-                    data = json_data
-            except:
-                pass
+        # Автоопределение: JSON или form-data
+        if request.is_json:
+            data = request.get_json()
+            logger.info("📥 Используем JSON-данные")
+        else:
+            data = request.form.to_dict()
+            logger.info("📥 Используем form-data")
 
-        if not data:  # ←←← ИСПРАВЛЕНО: проверка на пустоту
+        if not data:
             return jsonify({"error": "Пустой запрос"}), 400
 
         full_name = ""
@@ -77,24 +75,8 @@ def receive_application():
 
         telegram_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
 
-        requests.post(
-            telegram_url,
-            data={
-                "chat_id": ADMIN_CHAT_ID,
-                "text": claim_message,
-                "parse_mode": "HTML"
-            },
-            timeout=10
-        )
-
-        requests.post(
-            telegram_url,
-            data={
-                "chat_id": ADMIN_CHAT_ID,
-                "text": copy_text_clean
-            },
-            timeout=10
-        )
+        requests.post(telegram_url, data={"chat_id": ADMIN_CHAT_ID, "text": claim_message, "parse_mode": "HTML"}, timeout=10)
+        requests.post(telegram_url, data={"chat_id": ADMIN_CHAT_ID, "text": copy_text_clean}, timeout=10)
 
         logger.info(f"✅ Заявка от {full_name} успешно отправлена.")
         return jsonify({"status": "ok"}), 200
