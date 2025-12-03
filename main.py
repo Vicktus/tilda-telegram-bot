@@ -46,41 +46,18 @@ def receive_application():
             logger.info("📥 Используем form-data")
 
         if not data:
-            try:
-                json_data = request.get_json(silent=True)
-                if json_:
-                    data = json_data
-            except:
-                pass
-
-        if not data:
             return jsonify({"error": "Пустой запрос"}), 400
 
-        # Собираем все строковые значения
-        string_fields = [v.strip() for v in data.values() if isinstance(v, str) and v.strip()]
-
-        if len(string_fields) >= 2:
-            full_name = string_fields[0]
-            phone_raw = string_fields[1]
-        elif len(string_fields) == 1:
-            full_name = string_fields[0]
-            phone_raw = ""
-        else:
+        # Просто берём первые два текстовых значения
+        string_fields = [str(v).strip() for v in data.values() if isinstance(v, str) and str(v).strip()]
+        if len(string_fields) < 1:
             return jsonify({"error": "Не найдены текстовые данные"}), 400
-        full_name = ""
-        phone_raw = ""
 
-        for key, value in data.items():
-            if isinstance(value, str):
-                key_lower = key.lower()
-                if any(kw in key_lower for kw in ["name", "fio", "fullname", "имя", "фио", "фамилия", "contact"]):
-                    full_name = value.strip()
-                if any(kw in key_lower for kw in ["phone", "tel", "телефон", "мобильный", "phone_number"]):
-                    phone_raw = value.strip()
+        full_name = string_fields[0]
+        phone_raw = string_fields[1] if len(string_fields) > 1 else ""
 
-        if not full_name or not phone_raw:
-            logger.warning("❌ Не найдены ФИО или телефон")
-            return jsonify({"error": "Не найдены ФИО или телефон"}), 400
+        if not full_name:
+            return jsonify({"error": "ФИО не указано"}), 400
 
         clean_phone = normalize_russian_phone(phone_raw)
 
