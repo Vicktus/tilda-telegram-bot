@@ -5,7 +5,7 @@ import requests
 from flask import Flask, request, jsonify
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8551418943:AAFplKK48glNeteXeS9QrVch2smuZQ5T-AY")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "890315945"))
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "1072458728"))
 COPY_TEXT = os.getenv(
     "COPY_TEXT",
     "Здравствуйте! Благодарим за обращение. Мы свяжемся с вами в ближайшее время."
