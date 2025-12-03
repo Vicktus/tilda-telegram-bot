@@ -34,9 +34,12 @@ def normalize_russian_phone(phone: str) -> str:
 @app.route('/submit', methods=['POST'])
 def receive_application():
     try:
-        # Tilda отправляет данные как form-data (не JSON!)
+        # Tilda отправляет form-data, НЕ JSON
         data = request.form.to_dict()
         logger.info(f"📥 Получены данные от Tilda: {data}")
+        
+        if not data:
+            return jsonify({"error": "Пустой запрос"}), 400
 
         full_name = ""
         phone_raw = ""
@@ -44,14 +47,12 @@ def receive_application():
         for key, value in data.items():
             if isinstance(value, str):
                 key_lower = key.lower()
-                # Ищем поля по ключевым словам (латиница и кириллица)
                 if any(kw in key_lower for kw in ["name", "fio", "fullname", "имя", "фио"]):
                     full_name = value.strip()
-                if any(kw in key_lower for kw in ["phone", "tel", "телефон", "телефон"]):
+                if any(kw in key_lower for kw in ["phone", "tel", "телефон"]):
                     phone_raw = value.strip()
 
         if not full_name or not phone_raw:
-            logger.warning("❌ Не удалось найти ФИО или телефон")
             return jsonify({"error": "Не найдены ФИО или телефон"}), 400
 
         clean_phone = normalize_russian_phone(phone_raw)
