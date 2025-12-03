@@ -1,11 +1,14 @@
 import os
 import logging
 import re
-from telegram import Bot
+from telegram import Bot, Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode
 from flask import Flask, request, jsonify
+import threading
+import asyncio
 
-# === Настройки через переменные окружения ===
+# === Настройки ===
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8551418943:AAFplKK48glNeteXeS9QrVch2smuZQ5T-AY")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", "890315945"))
 COPY_TEXT = os.getenv(
@@ -17,7 +20,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+# Telegram bot setup
 bot = Bot(token=BOT_TOKEN)
+application = Application.builder().token(BOT_TOKEN).build()
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    if user_id == ADMIN_CHAT_ID:
+        await update.message.reply_text(
+            "✅ Бот работает!\n\n"
+            "Ожидаю заявки с сайта. Чтобы протестировать — отправь POST-запрос на /submit.",
+            parse_mode=ParseMode.HTML
+        )
+    else:
+        await update.message.reply_text("🚫 У вас нет доступа.")
+
+application.add_handler(CommandHandler("start", start_command))
+application.add_handler(CommandHandler("ping", start_command))
+
+def run_telegram_bot():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(application.run_polling())
+
+threading.Thread(target=run_telegram_bot, daemon=True).start()
 
 def normalize_russian_phone(phone: str) -> str:
     digits = re.sub(r'\D', '', phone)
@@ -37,7 +64,7 @@ def normalize_russian_phone(phone: str) -> str:
 def receive_application():
     try:
         data = request.get_json()
-        if not data:  # ←←← ВОТ ПРАВИЛЬНАЯ СТРОКА!
+        if not data:  # ←←← ВОТ ПРАВИЛЬНАЯ СТРОКА! Исправлено.
             return jsonify({"error": "Пустой запрос"}), 400
 
         full_name = ""
@@ -65,7 +92,6 @@ def receive_application():
             f"<pre>{COPY_TEXT}</pre>"
         )
 
-        import asyncio
         async def send():
             await bot.send_message(chat_id=ADMIN_CHAT_ID, text=message, parse_mode=ParseMode.HTML)
         asyncio.run(send())
@@ -76,6 +102,10 @@ def receive_application():
     except Exception as e:
         logger.exception("❌ Ошибка")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/healthz')
+def health():
+    return "OK", 200
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
