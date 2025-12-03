@@ -46,8 +46,27 @@ def receive_application():
             logger.info("📥 Используем form-data")
 
         if not data:
+            try:
+                json_data = request.get_json(silent=True)
+                if json_:
+                    data = json_data
+            except:
+                pass
+
+        if not data:
             return jsonify({"error": "Пустой запрос"}), 400
 
+        # Собираем все строковые значения
+        string_fields = [v.strip() for v in data.values() if isinstance(v, str) and v.strip()]
+
+        if len(string_fields) >= 2:
+            full_name = string_fields[0]
+            phone_raw = string_fields[1]
+        elif len(string_fields) == 1:
+            full_name = string_fields[0]
+            phone_raw = ""
+        else:
+            return jsonify({"error": "Не найдены текстовые данные"}), 400
         full_name = ""
         phone_raw = ""
 
